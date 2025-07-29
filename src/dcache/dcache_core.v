@@ -175,6 +175,7 @@ begin
 end
 
 reg mem_accept_r;
+wire tag_hit_any_m_w;
 
 always @ *
 begin
@@ -227,6 +228,7 @@ reg            flushing_q;
 //-----------------------------------------------------------------
 reg [DCACHE_TAG_REQ_LINE_W-1:0] tag_addr_x_r;
 reg [DCACHE_TAG_REQ_LINE_W-1:0] tag_addr_m_r;
+reg [DCACHE_TAG_REQ_LINE_W-1:0] flush_addr_q;
 
 // Tag RAM address
 always @ *
@@ -294,7 +296,10 @@ begin
 end
 
 // Tag RAM write enable (way 0)
-reg tag0_write_m_r;
+reg  tag0_write_m_r;
+wire tag0_hit_m_w;
+wire tag1_hit_m_w;
+
 always @ *
 begin
     tag0_write_m_r = 1'b0;
@@ -347,7 +352,7 @@ wire                           tag0_dirty_m_w     = tag0_data_out_m_w[CACHE_TAG_
 wire [CACHE_TAG_ADDR_BITS-1:0] tag0_addr_bits_m_w = tag0_data_out_m_w[`CACHE_TAG_ADDR_RNG];
 
 // Tag hit?
-wire                           tag0_hit_m_w = tag0_valid_m_w ? (tag0_addr_bits_m_w == req_addr_tag_cmp_m_w) : 1'b0;
+assign                         tag0_hit_m_w = tag0_valid_m_w ? (tag0_addr_bits_m_w == req_addr_tag_cmp_m_w) : 1'b0;
 
 // Tag RAM write enable (way 1)
 reg tag1_write_m_r;
@@ -403,10 +408,10 @@ wire                           tag1_dirty_m_w     = tag1_data_out_m_w[CACHE_TAG_
 wire [CACHE_TAG_ADDR_BITS-1:0] tag1_addr_bits_m_w = tag1_data_out_m_w[`CACHE_TAG_ADDR_RNG];
 
 // Tag hit?
-wire                           tag1_hit_m_w = tag1_valid_m_w ? (tag1_addr_bits_m_w == req_addr_tag_cmp_m_w) : 1'b0;
+assign                          tag1_hit_m_w = tag1_valid_m_w ? (tag1_addr_bits_m_w == req_addr_tag_cmp_m_w) : 1'b0;
 
 
-wire tag_hit_any_m_w = 1'b0
+assign tag_hit_any_m_w = 1'b0
                    | tag0_hit_m_w
                    | tag1_hit_m_w
                     ;
@@ -425,6 +430,10 @@ localparam EVICT_ADDR_W = 32 - DCACHE_LINE_SIZE_W;
 reg        evict_way_r;
 reg [31:0] evict_data_r;
 reg [EVICT_ADDR_W-1:0] evict_addr_r;
+
+wire [31:0] data0_data_out_m_w;
+wire [31:0] data1_data_out_m_w;
+
 always @ *
 begin
     evict_way_r  = 1'b0;
@@ -522,7 +531,6 @@ begin
         data0_write_m_r = mem_wr_m_q & {4{tag0_hit_m_w}};
 end
 
-wire [31:0] data0_data_out_m_w;
 wire [31:0] data0_data_in_m_w = (state_q == STATE_REFILL) ? pmem_read_data_w : mem_data_m_q;
 
 dcache_core_data_ram
@@ -559,7 +567,6 @@ begin
         data1_write_m_r = mem_wr_m_q & {4{tag1_hit_m_w}};
 end
 
-wire [31:0] data1_data_out_m_w;
 wire [31:0] data1_data_in_m_w = (state_q == STATE_REFILL) ? pmem_read_data_w : mem_data_m_q;
 
 dcache_core_data_ram
@@ -587,7 +594,6 @@ u_data1
 //-----------------------------------------------------------------
 // Flush counter
 //-----------------------------------------------------------------
-reg [DCACHE_TAG_REQ_LINE_W-1:0] flush_addr_q;
 
 always @ (posedge clk_i or posedge rst_i)
 if (rst_i)
